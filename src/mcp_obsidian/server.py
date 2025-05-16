@@ -155,8 +155,9 @@ def main() -> None:
         # Create and run server
         server = ObsidianMCPServer()
         
-        # TODO: Register tool handlers here
-        # Example: server.register_tools([ReadNoteToolHandler, CreateNoteToolHandler])
+        # Register file operation tools
+        from mcp_obsidian.tools.files import FILE_OPERATION_TOOLS
+        server.register_tools(FILE_OPERATION_TOOLS)
         
         # Run the server
         server.run()

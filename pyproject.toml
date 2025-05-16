@@ -7,7 +7,7 @@ name = "mcp-obsidian"
 version = "0.1.0"
 description = "MCP server for Obsidian integration with AI assistants"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "MCP Obsidian Team"}
@@ -17,7 +17,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
 ]
@@ -48,7 +47,7 @@ package-dir = {"" = "src"}
 
 [tool.black]
 line-length = 88
-target-version = ["py39"]
+target-version = ["py310"]
 include = '\.pyi?$'
 
 [tool.isort]
@@ -56,7 +55,7 @@ profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

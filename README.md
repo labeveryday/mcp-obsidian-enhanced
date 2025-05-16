@@ -18,15 +18,63 @@ The Obsidian MCP server enables AI assistants to interact with your Obsidian vau
 
 ## Installation and Setup
 
-Instructions for installation and configuration will be provided here.
+### Prerequisites
+
+- Python 3.10 or higher
+- Obsidian with the Local REST API plugin installed and configured
+- An API key for the Local REST API plugin
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/labeveryday/mcp-obsidian-enhanced.git
+   cd mcp-obsidian-enhanced
+   ```
+
+2. Create a virtual environment and install the package:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -e .
+   ```
+
+3. Create a `.env` file with your Obsidian API key:
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your API key
+   ```
 
 ## Usage
 
-Examples of how to use the MCP server with AI assistants will be provided here.
+See [DOCUMENTATION.md](DOCUMENTATION.md) for detailed usage instructions, including:
+- Running the server
+- Testing with MCP Inspector
+- Available tools and their parameters
+- Configuration options
 
-## Documentation
+## Development
 
-Detailed documentation for all features will be provided here.
+### Setting Up Development Environment
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/labeveryday/mcp-obsidian-enhanced.git
+   cd mcp-obsidian-enhanced
+   ```
+
+2. Create a virtual environment and install development dependencies:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -e ".[dev]"
+   ```
+
+### Running Tests
+
+```bash
+pytest
+```
 
 ## Contributing
 

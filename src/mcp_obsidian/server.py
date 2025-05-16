@@ -39,10 +39,7 @@ class ObsidianMCPServer:
         # Initialize MCP server
         self.server = Server(
             name="mcp-obsidian",
-            version="0.1.0",
-            capabilities={
-                "tools": {},
-            }
+            version="0.1.0"
         )
         
         # Initialize tool registry

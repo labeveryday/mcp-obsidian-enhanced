@@ -126,9 +126,9 @@ class ObsidianMCPServer:
     
     def setup_handlers(self) -> None:
         """Set up request handlers."""
-        # Register handlers
-        self.server.set_list_tools_handler(self._handle_list_tools)
-        self.server.set_call_tool_handler(self._handle_call_tool)
+        # Override the list_tools and call_tool methods
+        self.server.list_tools = self._handle_list_tools
+        self.server.call_tool = self._handle_call_tool
     
     def run(self) -> None:
         """Run the server."""

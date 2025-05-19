@@ -1,4 +1,4 @@
-# Obsidian MCP Server
+# Obsidian MCP Server Enhanced
 
 ![Status: Phase 1 Complete](https://img.shields.io/badge/status-Phase%201%20Complete-brightgreen)
 
@@ -38,8 +38,8 @@ This MCP server allows Amazon Q to interact with Obsidian vaults without requiri
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/mcp-obsidian.git
-   cd mcp-obsidian
+   git clone https://github.com/yourusername/mcp-obsidian-enhanced.git
+   cd mcp-obsidian-enhanced
    ```
 
 2. Create a virtual environment:
@@ -71,7 +71,7 @@ python run_server.py
 To test with MCP Inspector:
 
 ```bash
-npx @modelcontextprotocol/inspector --stdio "python run_server.py"
+npx @modelcontextprotocol/inspector uv --directory ./ "run_server.py"
 ```
 
 ## Implementation Details

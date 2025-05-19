@@ -16,7 +16,7 @@ A Model Context Protocol (MCP) server for integrating Amazon Q with Obsidian.
 
 ## Project Overview
 
-This MCP server allows Amazon Q to interact with Obsidian vaults without requiring the Obsidian application to be open. It leverages the Obsidian Local REST API plugin to provide a wide range of functionality for note management, organization, search, and knowledge management.
+This MCP server allows tools like Amazon Q and Claude Desktop to interact with Obsidian vaults without requiring the Obsidian application to be open. It leverages the Obsidian [Local REST API plugin](https://coddingtonbear.github.io/obsidian-local-rest-api/#/Search/post_search_) to provide a wide range of functionality for note management, organization, search, and knowledge management.
 
 ## Features
 
@@ -59,6 +59,31 @@ This MCP server allows Amazon Q to interact with Obsidian vaults without requiri
    OBSIDIAN_HOST=127.0.0.1
    OBSIDIAN_PORT=27124
    ```
+
+### Integration with Amazon Q CLI and Claude Desktop
+
+To integrate this MCP server with Amazon Q CLI and Claude Desktop, you need to configure the MCP server in your AWS configuration. Create or update the file at `~/.aws/amazonq/mcp.json` with the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "obsidian-mcp-server": {
+        "command": "uv",
+        "args": ["--directory", "/path/to/mcp-obsidian-enhanced", "run", "run_server.py"],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+    }
+  }
+}
+```
+
+Make sure to replace `/path/to/mcp-obsidian-enhanced` with the actual path to your repository.
+
+This configuration allows Amazon Q CLI and Claude Desktop to:
+- Access your Obsidian vault through the MCP server
+- Use all available tools and prompts
+- Maintain a persistent connection to your notes
 
 ### Running the Server
 

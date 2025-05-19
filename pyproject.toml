@@ -22,10 +22,10 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.1.0",
-    "requests>=2.28.0",
+    "httpx>=0.24.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
-    "jsonschema>=4.17.0",
+    "anyio>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -37,9 +37,6 @@ dev = [
     "mypy>=1.0.0",
     "flake8>=6.0.0",
 ]
-
-[project.scripts]
-mcp-obsidian = "mcp_obsidian:main"
 
 [tool.setuptools]
 packages = ["mcp_obsidian"]

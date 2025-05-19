@@ -1,590 +1,404 @@
-"""
-Obsidian API client for interacting with the Obsidian Local REST API.
-
-This module provides a client for interacting with the Obsidian Local REST API,
-which allows for reading and writing files in an Obsidian vault.
-"""
+"""Obsidian API client for interacting with the Local REST API."""
 
 import json
-import urllib.parse
-from typing import Any, Dict, List, Optional, Union
+import logging
+from typing import Dict, Any, List, Optional
 
-import requests
-import yaml
+import httpx
 
-from mcp_obsidian.config import ObsidianConfig, get_config
+from mcp_obsidian.config import ObsidianConfig
 from mcp_obsidian.utils.errors import (
-    AuthenticationError,
-    ConnectionError,
-    FileNotFoundError,
-    ObsidianError,
-    OperationNotSupportedError,
+    ObsidianAPIError,
+    ObsidianConnectionError,
+    ObsidianNotFoundError
 )
 
+# Set up logger
+logger = logging.getLogger(__name__)
 
 class ObsidianClient:
-    """Client for interacting with the Obsidian Local REST API."""
-
-    def __init__(self, config: Optional[ObsidianConfig] = None):
-        """
-        Initialize the Obsidian client with configuration.
+    """Client for interacting with Obsidian Local REST API."""
+    
+    def __init__(self, config: ObsidianConfig):
+        """Initialize the Obsidian API client.
         
         Args:
-            config: Configuration for connecting to the Obsidian Local REST API.
-                   If not provided, the global configuration will be used.
+            config: Configuration for the Obsidian API
         """
-        self.config = config or get_config().obsidian
-
-    def get_base_url(self) -> str:
-        """Get the base URL for the Obsidian Local REST API."""
-        return self.config.get_base_url()
-
-    def _get_headers(self) -> Dict[str, str]:
-        """
-        Generate headers with authentication.
+        self.config = config
+        self.base_url = f"{config.protocol}://{config.host}:{config.port}"
+        self.headers = {
+            "Authorization": f"Bearer {config.api_key}",
+            "Content-Type": "text/markdown"
+        }
+        self.client = None
+        logger.info(f"Initialized ObsidianClient with base URL: {self.base_url}")
+    
+    async def connect(self) -> bool:
+        """Test connection to Obsidian API.
         
         Returns:
-            Dict containing headers with authentication.
+            bool: True if connection successful, False otherwise
+        
+        Raises:
+            ObsidianConnectionError: If connection fails
         """
-        return {
-            "Authorization": f"Bearer {self.config.api_key}",
-            "Content-Type": "text/markdown",
-        }
-
-    def _safe_call(self, func: Any) -> Any:
-        """
-        Error handling wrapper for API calls.
+        self.client = httpx.AsyncClient(verify=self.config.verify_ssl, timeout=self.config.timeout)
+        try:
+            logger.debug(f"Attempting to connect to {self.base_url}/")
+            response = await self.client.get(f"{self.base_url}/", headers=self.headers)
+            logger.debug(f"Connection response status: {response.status_code}")
+            return response.status_code == 200
+        except httpx.RequestError as e:
+            logger.error(f"Connection error: {str(e)}")
+            raise ObsidianConnectionError(f"Failed to connect to Obsidian API: {str(e)}")
+    
+    async def close(self):
+        """Close the client connection."""
+        if self.client:
+            await self.client.aclose()
+    
+    async def get_note_content(self, path: str, include_metadata: bool = False) -> str:
+        """Get content of a note.
         
         Args:
-            func: Function to call.
+            path: Path to the note (relative to vault root)
+            include_metadata: Whether to include frontmatter metadata
             
         Returns:
-            Result of the function call.
+            str: Content of the note
             
         Raises:
-            AuthenticationError: If authentication fails.
-            FileNotFoundError: If a file is not found.
-            ConnectionError: If connection to the API fails.
-            ObsidianError: For other API errors.
+            ObsidianNotFoundError: If the note doesn't exist
+            ObsidianAPIError: If the API request fails
         """
-        try:
-            return func()
-        except requests.HTTPError as e:
-            if e.response.status_code == 401:
-                raise AuthenticationError(
-                    "Authentication failed. Check your API key."
-                ) from e
-            elif e.response.status_code == 404:
-                # Extract path from URL if possible
-                path = e.response.url.split("/vault/")[-1] if "/vault/" in e.response.url else "unknown"
-                raise FileNotFoundError(path) from e
+        if not self.client:
+            await self.connect()
             
-            # Try to parse error details from response
-            try:
-                error_data = e.response.json()
-                message = error_data.get("message", str(e))
-                error_code = error_data.get("errorCode", e.response.status_code)
-            except (ValueError, KeyError):
-                message = str(e)
-                error_code = e.response.status_code
-                
-            raise ObsidianError(
-                message=message,
-                status_code=error_code,
-            ) from e
-        except requests.ConnectionError as e:
-            raise ConnectionError(
-                f"Failed to connect to Obsidian API at {self.get_base_url()}"
-            ) from e
+        try:
+            response = await self.client.get(
+                f"{self.base_url}/vault/{path}",
+                headers=self.headers
+            )
+            
+            if response.status_code == 404:
+                raise ObsidianNotFoundError(f"Note not found: {path}")
+            
+            response.raise_for_status()
+            content = response.text
+            
+            if not include_metadata and content.startswith("---"):
+                # Strip frontmatter if not requested
+                end_marker = content.find("---", 3)
+                if end_marker > 0:
+                    content = content[end_marker + 3:].strip()
+            
+            return content
+            
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+    
+    async def create_note(
+        self, 
+        path: str, 
+        content: str, 
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Create a new note.
+        
+        Args:
+            path: Path where to create the note (relative to vault root)
+            content: Content of the note
+            metadata: Optional frontmatter metadata to include
+            
+        Returns:
+            bool: True if successful, False otherwise
+            
+        Raises:
+            ObsidianAPIError: If the API request fails
+        """
+        if not self.client:
+            logger.debug("Client not initialized, connecting...")
+            await self.connect()
+            
+        if metadata:
+            # Add frontmatter if metadata provided
+            frontmatter = "---\n" + "\n".join([f"{k}: {json.dumps(v)}" for k, v in metadata.items()]) + "\n---\n\n"
+            content = frontmatter + content
+        
+        url = f"{self.base_url}/vault/{path}"
+        logger.debug(f"Creating note at {url}")
+        logger.debug(f"Request headers: {self.headers}")
+        logger.debug(f"Content length: {len(content)}")
+        
+        try:
+            response = await self.client.put(
+                url,
+                headers=self.headers,
+                content=content
+            )
+            logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Response headers: {response.headers}")
+            if response.status_code != 200:
+                logger.error(f"Response content: {response.text}")
+            response.raise_for_status()
+            return response.status_code in (200, 201, 204)
+            
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error: {str(e)}")
+            logger.error(f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}")
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            logger.error(f"Request error: {str(e)}")
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
         except Exception as e:
-            raise ObsidianError(f"Unexpected error: {str(e)}") from e
-
-    # File Operations
-
-    def get_file_contents(self, filepath: str, format: str = "markdown") -> str:
-        """
-        Get content of a file.
+            logger.error(f"Unexpected error: {str(e)}")
+            raise ObsidianAPIError(f"Unexpected error: {str(e)}")
+    
+    async def update_note(self, path: str, content: str) -> bool:
+        """Update an existing note.
         
         Args:
-            filepath: Path to the file relative to vault root.
-            format: Format to return the content in. Either "markdown" or "json".
+            path: Path to the note (relative to vault root)
+            content: New content for the note
             
         Returns:
-            Content of the file.
+            bool: True if successful, False otherwise
             
         Raises:
-            FileNotFoundError: If the file is not found.
+            ObsidianNotFoundError: If the note doesn't exist
+            ObsidianAPIError: If the API request fails
         """
-        url = f"{self.get_base_url()}/vault/{filepath}"
-        
-        headers = self._get_headers()
-        if format == "json":
-            headers["Accept"] = "application/vnd.olrapi.note+json"
-        
-        def call_fn():
-            response = requests.get(
-                url, 
-                headers=headers, 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
+        if not self.client:
+            await self.connect()
             
-            if format == "json":
-                return response.json()
-            return response.text
-
-        return self._safe_call(call_fn)
-
-    def create_or_update_file(self, filepath: str, content: str) -> None:
-        """
-        Create or update a file.
-        
-        Args:
-            filepath: Path to the file relative to vault root.
-            content: Content to write to the file.
-        """
-        url = f"{self.get_base_url()}/vault/{filepath}"
-        
-        def call_fn():
-            response = requests.put(
-                url, 
-                headers=self._get_headers(), 
-                data=content,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def append_content(self, filepath: str, content: str) -> None:
-        """
-        Append content to a file.
-        
-        Args:
-            filepath: Path to the file relative to vault root.
-            content: Content to append to the file.
-        """
-        url = f"{self.get_base_url()}/vault/{filepath}"
-        
-        def call_fn():
-            response = requests.post(
-                url, 
-                headers=self._get_headers(), 
-                data=content,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def patch_content(
-        self, 
-        filepath: str, 
-        operation: str, 
-        target_type: str, 
-        target: str, 
-        content: str,
-        create_target_if_missing: bool = True,
-    ) -> None:
-        """
-        Insert content at specific location.
-        
-        Args:
-            filepath: Path to the file relative to vault root.
-            operation: Operation to perform. One of "append", "prepend", "replace".
-            target_type: Type of target. One of "heading", "block", "frontmatter".
-            target: Target identifier.
-            content: Content to insert.
-            create_target_if_missing: Whether to create the target if it doesn't exist.
-        """
-        url = f"{self.get_base_url()}/vault/{filepath}"
-        
-        headers = self._get_headers()
-        headers.update({
-            "Operation": operation,
-            "Target-Type": target_type,
-            "Target": urllib.parse.quote(target),
-            "Create-Target-If-Missing": str(create_target_if_missing).lower(),
-        })
-        
-        def call_fn():
-            response = requests.patch(
-                url, 
-                headers=headers, 
-                data=content,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def delete_file(self, filepath: str) -> None:
-        """
-        Delete a file.
-        
-        Args:
-            filepath: Path to the file relative to vault root.
-        """
-        url = f"{self.get_base_url()}/vault/{filepath}"
-        
-        def call_fn():
-            response = requests.delete(
-                url, 
-                headers=self._get_headers(), 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    # Active File Operations
-
-    def get_active_file(self, format: str = "markdown") -> Union[str, Dict[str, Any]]:
-        """
-        Get content of active file.
-        
-        Args:
-            format: Format to return the content in. Either "markdown" or "json".
-            
-        Returns:
-            Content of the active file.
-        """
-        url = f"{self.get_base_url()}/active/"
-        
-        headers = self._get_headers()
-        if format == "json":
-            headers["Accept"] = "application/vnd.olrapi.note+json"
-        
-        def call_fn():
-            response = requests.get(
-                url, 
-                headers=headers, 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            
-            if format == "json":
-                return response.json()
-            return response.text
-
-        return self._safe_call(call_fn)
-
-    def update_active_file(self, content: str) -> None:
-        """
-        Update active file.
-        
-        Args:
-            content: Content to write to the file.
-        """
-        url = f"{self.get_base_url()}/active/"
-        
-        def call_fn():
-            response = requests.put(
-                url, 
-                headers=self._get_headers(), 
-                data=content,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def append_active_file(self, content: str) -> None:
-        """
-        Append to active file.
-        
-        Args:
-            content: Content to append to the file.
-        """
-        url = f"{self.get_base_url()}/active/"
-        
-        def call_fn():
-            response = requests.post(
-                url, 
-                headers=self._get_headers(), 
-                data=content,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def patch_active_file(
-        self, 
-        operation: str, 
-        target_type: str, 
-        target: str, 
-        content: str,
-        create_target_if_missing: bool = True,
-    ) -> None:
-        """
-        Insert content at location in active file.
-        
-        Args:
-            operation: Operation to perform. One of "append", "prepend", "replace".
-            target_type: Type of target. One of "heading", "block", "frontmatter".
-            target: Target identifier.
-            content: Content to insert.
-            create_target_if_missing: Whether to create the target if it doesn't exist.
-        """
-        url = f"{self.get_base_url()}/active/"
-        
-        headers = self._get_headers()
-        headers.update({
-            "Operation": operation,
-            "Target-Type": target_type,
-            "Target": urllib.parse.quote(target),
-            "Create-Target-If-Missing": str(create_target_if_missing).lower(),
-        })
-        
-        def call_fn():
-            response = requests.patch(
-                url, 
-                headers=headers, 
-                data=content,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def delete_active_file(self) -> None:
-        """Delete active file."""
-        url = f"{self.get_base_url()}/active/"
-        
-        def call_fn():
-            response = requests.delete(
-                url, 
-                headers=self._get_headers(), 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    def show_file(self, filepath: str, new_leaf: bool = False) -> None:
-        """
-        Open file in Obsidian UI.
-        
-        Args:
-            filepath: Path to the file relative to vault root.
-            new_leaf: Whether to open the file in a new leaf.
-        """
-        query = "?newLeaf=true" if new_leaf else ""
-        url = f"{self.get_base_url()}/open/{urllib.parse.quote(filepath)}{query}"
-        
-        def call_fn():
-            response = requests.post(
-                url, 
-                headers=self._get_headers(), 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return None
-
-        return self._safe_call(call_fn)
-
-    # Folder Operations
-
-    def list_files_in_vault(self) -> List[Dict[str, Any]]:
-        """
-        List files in vault root.
-        
-        Returns:
-            List of files in the vault root.
-        """
-        url = f"{self.get_base_url()}/vault/"
-        
-        def call_fn():
-            response = requests.get(
-                url, 
-                headers=self._get_headers(), 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            
-            return response.json()["files"]
-
-        return self._safe_call(call_fn)
-
-    def list_files_in_dir(self, dirpath: str) -> List[Dict[str, Any]]:
-        """
-        List files in specific directory.
-        
-        Args:
-            dirpath: Path to the directory relative to vault root.
-            
-        Returns:
-            List of files in the directory.
-        """
-        url = f"{self.get_base_url()}/vault/{dirpath}/"
-        
-        def call_fn():
-            response = requests.get(
-                url, 
-                headers=self._get_headers(), 
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            
-            return response.json()["files"]
-
-        return self._safe_call(call_fn)
-
-    # Search Operations
-
-    def search(self, query: str, context_length: int = 100) -> List[Dict[str, Any]]:
-        """
-        Simple text search.
-        
-        Args:
-            query: Text to search for.
-            context_length: Length of context to include around matches.
-            
-        Returns:
-            List of search results.
-        """
-        url = f"{self.get_base_url()}/search/simple/"
-        params = {
-            "query": query,
-            "contextLength": context_length
-        }
-        
-        def call_fn():
-            response = requests.post(
-                url, 
-                headers=self._get_headers(), 
-                params=params,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return response.json()
-
-        return self._safe_call(call_fn)
-
-    def search_json(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Advanced search with JSON Logic.
-        
-        Args:
-            query: JSON Logic query.
-            
-        Returns:
-            List of search results.
-        """
-        url = f"{self.get_base_url()}/search/"
-        
-        headers = self._get_headers()
-        headers["Content-Type"] = "application/vnd.olrapi.jsonlogic+json"
-        
-        def call_fn():
-            response = requests.post(
-                url, 
-                headers=headers, 
-                json=query,
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return response.json()
-
-        return self._safe_call(call_fn)
-
-    def search_dql(self, query: str) -> List[Dict[str, Any]]:
-        """
-        Search using Dataview Query Language.
-        
-        Args:
-            query: Dataview Query Language query.
-            
-        Returns:
-            List of search results.
-        """
-        url = f"{self.get_base_url()}/search/"
-        
-        headers = self._get_headers()
-        headers["Content-Type"] = "application/vnd.olrapi.dataview.dql+txt"
-        
-        def call_fn():
-            response = requests.post(
-                url, 
-                headers=headers, 
-                data=query.encode("utf-8"),
-                verify=self.config.verify_ssl, 
-                timeout=self.config.timeout
-            )
-            response.raise_for_status()
-            return response.json()
-
-        return self._safe_call(call_fn)
-
-    # Utility Methods
-
-    def parse_frontmatter(self, content: str) -> Dict[str, Any]:
-        """
-        Parse YAML frontmatter from content.
-        
-        Args:
-            content: Content to parse frontmatter from.
-            
-        Returns:
-            Dictionary containing frontmatter properties.
-        """
-        if not content.startswith("---"):
-            return {}
-        
         try:
-            # Find the end of the frontmatter
-            end_index = content.find("---", 3)
-            if end_index == -1:
-                return {}
+            # First check if the note exists
+            await self.get_note_content(path)
             
-            # Extract and parse the frontmatter
-            frontmatter_text = content[3:end_index].strip()
-            return yaml.safe_load(frontmatter_text) or {}
-        except Exception:
-            return {}
-
-    def get_batch_file_contents(self, filepaths: List[str]) -> str:
-        """
-        Get contents of multiple files and concatenate them with headers.
+            # Then update it
+            response = await self.client.put(
+                f"{self.base_url}/vault/{path}",
+                headers=self.headers,
+                content=content
+            )
+            response.raise_for_status()
+            return response.status_code in (200, 201, 204)
+            
+        except ObsidianNotFoundError:
+            raise
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+    
+    async def append_to_note(self, path: str, content: str) -> bool:
+        """Append content to an existing note.
         
         Args:
-            filepaths: List of file paths to read.
+            path: Path to the note (relative to vault root)
+            content: Content to append
             
         Returns:
-            String containing all file contents with headers.
+            bool: True if successful, False otherwise
+            
+        Raises:
+            ObsidianNotFoundError: If the note doesn't exist
+            ObsidianAPIError: If the API request fails
         """
-        result = []
+        if not self.client:
+            await self.connect()
+            
+        try:
+            # Get existing content
+            existing_content = await self.get_note_content(path, include_metadata=True)
+            
+            # Append new content
+            new_content = existing_content + "\n\n" + content
+            
+            # Update the note
+            return await self.update_note(path, new_content)
+            
+        except ObsidianNotFoundError:
+            raise
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+    
+    async def delete_note(self, path: str) -> bool:
+        """Delete a note.
         
-        for filepath in filepaths:
-            try:
-                content = self.get_file_contents(filepath)
-                result.append(f"# {filepath}\n\n{content}\n\n---\n\n")
-            except Exception as e:
-                # Add error message but continue processing other files
-                result.append(f"# {filepath}\n\nError reading file: {str(e)}\n\n---\n\n")
+        Args:
+            path: Path to the note (relative to vault root)
+            
+        Returns:
+            bool: True if successful, False otherwise
+            
+        Raises:
+            ObsidianNotFoundError: If the note doesn't exist
+            ObsidianAPIError: If the API request fails
+        """
+        if not self.client:
+            await self.connect()
+            
+        try:
+            response = await self.client.delete(
+                f"{self.base_url}/vault/{path}",
+                headers=self.headers
+            )
+            
+            if response.status_code == 404:
+                raise ObsidianNotFoundError(f"Note not found: {path}")
                 
-        return "".join(result)
+            response.raise_for_status()
+            return response.status_code in (200, 204)
+            
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+    
+    async def list_files(self, folder: str = "") -> List[Dict[str, Any]]:
+        """List files in a folder.
+        
+        Args:
+            folder: Folder path (relative to vault root)
+            
+        Returns:
+            List[Dict[str, Any]]: List of files with metadata
+            
+        Raises:
+            ObsidianNotFoundError: If the folder doesn't exist
+            ObsidianAPIError: If the API request fails
+        """
+        if not self.client:
+            await self.connect()
+            
+        try:
+            response = await self.client.get(
+                f"{self.base_url}/vault/{folder}",
+                headers=self.headers,
+                params={"list": True}
+            )
+            
+            if response.status_code == 404:
+                raise ObsidianNotFoundError(f"Folder not found: {folder}")
+                
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+    
+    async def search(self, query: str, query_format: str = "dataview") -> List[Dict[str, Any]]:
+        """Search for notes using Dataview or JsonLogic queries.
+        
+        Args:
+            query: Search query in Dataview DQL or JsonLogic format
+            query_format: Query format to use ("dataview" or "jsonlogic")
+            
+        Returns:
+            List[Dict[str, Any]]: List of matching notes with metadata
+            
+        Raises:
+            ObsidianAPIError: If the API request fails
+        """
+        if not self.client:
+            await self.connect()
+            
+        # Set content type based on query format
+        if query_format == "dataview":
+            content_type = "application/vnd.olrapi.dataview.dql+txt"
+        elif query_format == "jsonlogic":
+            content_type = "application/vnd.olrapi.jsonlogic+json"
+        else:
+            raise ValueError(f"Unsupported query format: {query_format}")
+            
+        headers = {
+            **self.headers,
+            "Content-Type": content_type
+        }
+            
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/search",
+                headers=headers,
+                content=query
+            )
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+            
+    async def simple_search(self, query: str, context_length: int = 100) -> List[Dict[str, Any]]:
+        """Search for notes using simple text search.
+        
+        Args:
+            query: Text to search for
+            context_length: How much context to return around the matching string (default: 100)
+            
+        Returns:
+            List[Dict[str, Any]]: List of matching notes with metadata and context
+            
+        Raises:
+            ObsidianAPIError: If the API request fails
+        """
+        if not self.client:
+            await self.connect()
+            
+        try:
+            # Set proper headers for form data
+            headers = {
+                **self.headers,
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            
+            # Send query as form data
+            response = await self.client.post(
+                f"{self.base_url}/search/simple",
+                headers=headers,
+                data={
+                    "query": query,
+                    "contextLength": context_length
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")
+    
+    async def get_active_file(self) -> Dict[str, Any]:
+        """Get information about the currently active file.
+        
+        Returns:
+            Dict[str, Any]: Information about the active file
+            
+        Raises:
+            ObsidianAPIError: If the API request fails
+        """
+        if not self.client:
+            await self.connect()
+            
+        try:
+            response = await self.client.get(
+                f"{self.base_url}/active-file",
+                headers=self.headers
+            )
+            response.raise_for_status()
+            return response.json()
+            
+        except httpx.HTTPStatusError as e:
+            raise ObsidianAPIError(f"API error: {str(e)}")
+        except httpx.RequestError as e:
+            raise ObsidianConnectionError(f"Connection error: {str(e)}")

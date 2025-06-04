@@ -1,30 +1,36 @@
 # Obsidian MCP Server Enhanced
 
-![Status: Phase 1 Complete](https://img.shields.io/badge/status-Phase%201%20Complete-brightgreen)
+![Status: Phase 1 Partially Complete](https://img.shields.io/badge/status-Phase%201%20Partially%20Complete-yellow)
 
 A Model Context Protocol (MCP) server for integrating Amazon Q with Obsidian.
 
----
-
-**Project Status:**
-- **Phase 1 (Core Infrastructure) is now complete.**
-- The server supports FastMCP, configuration management, an async Obsidian API client, and all basic file operations.
-- The codebase has been refactored to use explicit `@mcp.prompt` decorators for prompt registration, matching the FastMCP SDK and best practices.
-- Ready to begin Phase 2: Essential Features.
-
----
-
 ## Project Overview
 
-This MCP server allows tools like Amazon Q and Claude Desktop to interact with Obsidian vaults without requiring the Obsidian application to be open. It leverages the Obsidian [Local REST API plugin](https://coddingtonbear.github.io/obsidian-local-rest-api/#/Search/post_search_) to provide a wide range of functionality for note management, organization, search, and knowledge management.
+This MCP server allows Amazon Q to interact with Obsidian vaults without requiring the Obsidian application to be open. It leverages the Obsidian [Local REST API plugin](https://coddingtonbear.github.io/obsidian-local-rest-api/) to provide functionality for note management, search, and knowledge management.
+
+## Current Status
+
+- **Phase 1 (Core Infrastructure)**: Partially complete
+- Basic file operations, search, and note templates are working
+- Built with FastMCP for seamless integration with Amazon Q
+- Uses decorator-based approach for prompt registration
 
 ## Features
 
+### Currently Implemented
+
 - **File Operations**: Read, create, update, append to, and delete notes
-- **Folder Management**: List, create, delete, rename, and move folders
+- **Basic Folder Management**: List files in folders
+- **Search**: Basic search functionality for notes
+- **Daily Notes**: Create daily notes with predefined sections
+- **Meeting Notes**: Create meeting notes with structured templates
+
+### Planned Features
+
+- **Advanced Folder Management**: Create, delete, rename, and move folders
 - **Organization & Metadata**: Manage tags, frontmatter, and file organization
-- **Search & Discovery**: Search notes by content, tags, and other criteria
-- **Knowledge Management**: Work with daily notes, extract highlights, and more
+- **Advanced Search & Discovery**: Enhanced search by content, tags, and other criteria
+- **Knowledge Management**: Extract highlights, compile notes, and more
 
 ## Getting Started
 
@@ -60,9 +66,11 @@ This MCP server allows tools like Amazon Q and Claude Desktop to interact with O
    OBSIDIAN_PORT=27124
    ```
 
-### Integration with Amazon Q CLI and Claude Desktop
+### Integration with Amazon Q CLI
 
-To integrate this MCP server with Amazon Q CLI and Claude Desktop, you need to configure the MCP server in your AWS configuration. Create or update the file at `~/.aws/amazonq/mcp.json` with the following configuration:
+To integrate this MCP server with Amazon Q CLI, configure the MCP server in your AWS configuration:
+
+1. Create or update the file at `~/.aws/amazonq/mcp.json`:
 
 ```json
 {
@@ -78,12 +86,7 @@ To integrate this MCP server with Amazon Q CLI and Claude Desktop, you need to c
 }
 ```
 
-Make sure to replace `/path/to/mcp-obsidian-enhanced` with the actual path to your repository.
-
-This configuration allows Amazon Q CLI and Claude Desktop to:
-- Access your Obsidian vault through the MCP server
-- Use all available tools and prompts
-- Maintain a persistent connection to your notes
+2. Replace `/path/to/mcp-obsidian-enhanced` with the actual path to your repository.
 
 ### Running the Server
 
@@ -96,204 +99,70 @@ python run_server.py
 To test with MCP Inspector:
 
 ```bash
-npx @modelcontextprotocol/inspector uv --directory ./ "run_server.py"
+npx @modelcontextprotocol/inspector uv --directory ./ "run" "run_server.py"
 ```
 
-## Implementation Details
+## Available Tools
 
-### Architecture
+| Tool Name | Description |
+|-----------|-------------|
+| `obsidian_read_note` | Get content of a note from your Obsidian vault |
+| `obsidian_create_note` | Create a new note in your Obsidian vault |
+| `obsidian_update_note` | Update an existing note in your Obsidian vault |
+| `obsidian_append_note` | Append content to an existing note |
+| `obsidian_delete_note` | Delete a note from your Obsidian vault |
+| `obsidian_list_files` | List files and folders in your Obsidian vault |
+| `obsidian_search` | Search for notes in your Obsidian vault |
+| `obsidian_get_active_file` | Get the currently active file in Obsidian |
+| `obsidian_create_daily_note` | Create a daily note with predefined sections |
+| `obsidian_summarize_note` | Summarize the content of a note (placeholder) |
+| `obsidian_search_and_compile` | Search for notes and compile information (placeholder) |
+| `obsidian_organize_notes` | Organize notes on a specific topic (placeholder) |
 
-This project uses FastMCP, a modern approach for building MCP servers in Python. Key components include:
+## Available Prompts
 
-1. **ObsidianClient**: Wrapper around the Obsidian Local REST API
-2. **MCP Server**: FastMCP implementation with tools, resources, and prompts
-3. **Configuration**: Environment-based configuration management
+The server provides prompt templates using the decorator-based approach:
 
-### Available Tools
+### Meeting Notes
 
-| Category | Tools |
-|----------|-------|
-| File Operations | `obsidian_read_note`, `obsidian_create_note`, `obsidian_update_note`, `obsidian_append_note`, `obsidian_delete_note` |
-| Folder Management | `obsidian_list_files` |
-| Search | `obsidian_search` |
-| Active File | `obsidian_get_active_file` |
-
-### Resources
-
-Notes in the Obsidian vault are exposed as resources with URIs in the format:
-```
-obsidian://path/to/note.md
-```
-
-### Prompts
-
-The server provides prompt templates for common operations:
-- `create-daily-note`: Create a daily note with template
-- `search-notes`: Search notes with specific criteria
-
-## Using Prompts
-
-The MCP server provides several prompt templates to help you create and manage notes in your Obsidian vault. These prompts make it easy to create structured notes with consistent formatting.
-
-**Note:** Prompts are now registered explicitly using `@mcp.prompt("name")` decorators. Dynamic prompt execution (e.g., `mcp.execute_prompt`) is no longer used. See the codebase for examples of prompt registration.
-
-### Available Prompts
-
-1. **Create Note** (`create-note`)
-   ```python
-   await mcp.execute_prompt("create-note", {
-       "title": "Project Ideas",
-       "folder": "Projects/",
-       "template": "project",
-       "tags": "project, ideas"
-   })
-   ```
-
-2. **Meeting Notes** (`meeting-notes`)
-   ```python
-   await mcp.execute_prompt("meeting-notes", {
-       "title": "Team Sync",
-       "date": "2024-03-20",
-       "participants": "John, Jane, Bob",
-       "folder": "Meetings/"
-   })
-   ```
-
-3. **Project Notes** (`project-notes`)
-   ```python
-   await mcp.execute_prompt("project-notes", {
-       "title": "Website Redesign",
-       "status": "in-progress",
-       "priority": "high",
-       "folder": "Projects/"
-   })
-   ```
-
-4. **Daily Notes** (`daily-notes`)
-   ```python
-   await mcp.execute_prompt("daily-notes", {
-       "date": "2024-03-20",
-       "folder": "Daily Notes/",
-       "tags": "daily, work"
-   })
-   ```
-
-5. **Search and Compile** (`search-compile`)
-   ```python
-   await mcp.execute_prompt("search-compile", {
-       "query": "tag:#project",
-       "output_path": "Compiled/Projects.md",
-       "format": "detailed"
-   })
-   ```
-
-6. **Note Summary** (`note-summary`)
-   ```python
-   await mcp.execute_prompt("note-summary", {
-       "path": "Projects/Website.md",
-       "length": "medium",
-       "include_metadata": true
-   })
-   ```
-
-7. **Organize Notes** (`organize-notes`)
-   ```python
-   await mcp.execute_prompt("organize-notes", {
-       "topic": "project management",
-       "folder": "Projects/",
-       "structure": "hierarchical"
-   })
-   ```
-
-### Using Prompts with curl
-
-You can also use prompts directly with curl commands:
-
-```bash
-# Create a meeting note
-curl -X POST "http://127.0.0.1:27124/prompts/execute" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "meeting-notes",
-    "arguments": {
-      "title": "Team Sync",
-      "date": "2024-03-20",
-      "participants": "John, Jane, Bob",
-      "folder": "Meetings/"
-    }
-  }'
-
-# Create a daily note
-curl -X POST "http://127.0.0.1:27124/prompts/execute" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "daily-notes",
-    "arguments": {
-      "date": "2024-03-20",
-      "folder": "Daily Notes/",
-      "tags": "daily, work"
-    }
-  }'
+```python
+@mcp.prompt("meeting-notes")
+async def meeting_notes_prompt(
+    title: str,
+    date: str = "",
+    participants: str = "",
+    folder: str = "Meetings",
+    tags: List[str] = None
+) -> Dict[str, Any]:
+    """Create a meeting note with the given details."""
+    # Implementation...
 ```
 
-### Prompt Templates
+### Create Note
 
-Each prompt template includes:
-
-- Required and optional arguments
-- Default values where applicable
-- Clear descriptions of each parameter
-- Support for common use cases
-
-The templates are designed to work with your existing tools and provide a more structured way to interact with your Obsidian vault.
-
-## Development
-
-### Project Structure
-
-```
-mcp-obsidian/
-├── src/
-│   └── mcp_obsidian/
-│       ├── __init__.py
-│       ├── config.py         # Configuration management
-│       ├── obsidian.py       # Obsidian API client
-│       ├── server.py         # MCP server implementation
-│       └── utils/
-│           ├── __init__.py
-│           └── errors.py     # Custom exceptions
-├── pyproject.toml            # Project configuration
-├── README.md
-└── run_server.py             # Server entry point
+```python
+@mcp.prompt("create-note")
+async def create_note_prompt(
+    title: str,
+    content: str,
+    folder: str = "",
+    tags: List[str] = None
+) -> Dict[str, Any]:
+    """Create a new note with the given details."""
+    # Implementation...
 ```
 
-### Implementation Phases
+### Organize Notes
 
-#### Phase 1: Core Infrastructure (**Complete**)
-- Basic server setup with FastMCP
-- Configuration management
-- Obsidian API client
-- Basic file operations
-
-#### Phase 2: Essential Features (Next)
-- Folder management tools
-- Advanced search functionality
-- Metadata management
-- Subscription support
-
-#### Phase 3: Advanced Features
-- Knowledge management tools
-- Bulk operations
-- Template support
-- Advanced search capabilities
-
-#### Phase 4: Optimization & Polish
-- Performance optimizations
-- Enhanced error handling
-- Comprehensive logging
-- Detailed documentation
+```python
+@mcp.prompt("organize-notes")
+async def organize_notes_prompt(
+    topic: str,
+    folder: str = ""
+) -> Dict[str, Any]:
+    """Organize notes related to a specific topic."""
+    # Implementation...
+```
 
 ## Configuration Options
 
@@ -302,155 +171,71 @@ mcp-obsidian/
 | `OBSIDIAN_API_KEY` | API key from Local REST API plugin | (Required) |
 | `OBSIDIAN_HOST` | Host where Obsidian is running | 127.0.0.1 |
 | `OBSIDIAN_PORT` | Port for the API | 27124 |
-| `OBSIDIAN_PROTOCOL` | Protocol to use | http |
+| `OBSIDIAN_PROTOCOL` | Protocol to use | https |
 | `OBSIDIAN_VERIFY_SSL` | Whether to verify SSL certificates | false |
 | `OBSIDIAN_TIMEOUT` | Connection timeout in seconds | 10 |
 | `LOG_LEVEL` | Logging level (INFO, DEBUG, etc.) | INFO |
 
-## API Testing with curl
+## Implementation Roadmap
 
-You can test the Obsidian Local REST API endpoints directly using curl. Replace `YOUR_API_KEY` with your actual API key from the Local REST API plugin settings.
+### Phase 1: Core Infrastructure (In Progress)
+- ✅ Basic server setup with FastMCP
+- ✅ Configuration management
+- ✅ Obsidian API client
+- ✅ Basic file operations
+- ⏳ Complete folder management tools
 
-### File Operations
+### Phase 2: Essential Features (Planned)
+- Advanced search functionality
+- Metadata management
+- Improved templates
 
-#### Create/Update a Note
+### Phase 3: Advanced Features (Planned)
+- Knowledge management tools
+- Bulk operations
+- Advanced search capabilities
+
+### Phase 4: Optimization & Polish (Planned)
+- Performance optimizations
+- Enhanced error handling
+- Comprehensive logging
+- Detailed documentation
+
+## Testing the API Directly
+
+You can test the Obsidian Local REST API endpoints directly using curl:
+
+### List Files in a Folder
 ```bash
-# Create or update a note
-curl -X PUT "http://127.0.0.1:27124/vault/AWS-Training/test.md" \
+curl -X GET "http://127.0.0.1:27124/vault/FolderName?list=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Read a Note
+```bash
+curl -X GET "http://127.0.0.1:27124/vault/path/to/note.md" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Create/Update a Note
+```bash
+curl -X PUT "http://127.0.0.1:27124/vault/path/to/note.md" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: text/markdown" \
-  -d "# Test Note
-
-This is a test note with a tag.
-
----
-tags: [test]
----"
+  -d "# Note Title\n\nNote content here."
 ```
 
-#### Read a Note
+### Search Notes
 ```bash
-# Read a note
-curl -X GET "http://127.0.0.1:27124/vault/AWS-Training/test.md" \
-  -H "Authorization: Bearer YOUR_API_KEY"
-```
-
-#### Delete a Note
-```bash
-# Delete a note
-curl -X DELETE "http://127.0.0.1:27124/vault/AWS-Training/test.md" \
-  -H "Authorization: Bearer YOUR_API_KEY"
-```
-
-### Folder Operations
-
-#### List Files
-```bash
-# List files in a folder
-curl -X GET "http://127.0.0.1:27124/vault/AWS-Training?list=true" \
-  -H "Authorization: Bearer YOUR_API_KEY"
-```
-
-### Search Operations
-
-#### Simple Text Search
-The simple search endpoint searches across your entire vault by default. You can use search operators to narrow down results:
-
-- `path:folder/` - Search only in a specific folder
-- `tag:#tag` - Search for notes with specific tags
-- `file:name.md` - Search for specific filenames
-- `content:"text"` - Search for specific content
-
-```bash
-# Search across entire vault
 curl -X POST "http://127.0.0.1:27124/search/simple" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "query=your+search+text"
-
-# Search in specific folder
-curl -X POST "http://127.0.0.1:27124/search/simple" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "query=path:AWS-Training+your+search+text"
-
-# Search with custom context length
-curl -X POST "http://127.0.0.1:27124/search/simple" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "query=your+search+text&contextLength=200"
+  -d "query=search_term"
 ```
-
-#### Advanced Search (Dataview/JsonLogic)
-For more complex searches, you can use Dataview or JsonLogic queries:
-
-```bash
-# Search using Dataview query
-curl -X POST "http://127.0.0.1:27124/search" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/vnd.olrapi.dataview.dql+txt" \
-  -d "TABLE file.name, file.mtime FROM #project"
-
-# Search using JsonLogic query
-curl -X POST "http://127.0.0.1:27124/search" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/vnd.olrapi.jsonlogic+json" \
-  -d '{"glob": ["*.md", "file.path"]}'
-```
-
-### Testing Notes
-
-1. Make sure Obsidian is running and the Local REST API plugin is enabled
-2. Replace `YOUR_API_KEY` with your actual API key
-3. All paths are relative to your vault root
-4. The API returns JSON responses for most operations
-
-Example response formats:
-
-#### Successful Response
-```json
-{
-  "status": "success",
-  "data": {
-    "content": "# Note Content\n\nThis is the note content.",
-    "metadata": {
-      "tags": ["test"],
-      "date": "2024-03-20"
-    }
-  }
-}
-```
-
-#### Error Response
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "not_found",
-    "message": "Note not found: test.md"
-  }
-}
-```
-
-### Common Issues and Solutions
-
-1. **Path Issues**
-   - Use forward slashes (/) for paths
-   - Paths are case-sensitive
-   - Always include the .md extension for files
-
-2. **Content-Type Issues**
-   - Use `text/markdown` for note content
-   - Use `application/json` for API responses
-
-3. **Authentication Issues**
-   - Make sure the API key is correct
-   - Check that the Bearer token format is correct
-   - Verify the API key is enabled in the Local REST API plugin settings
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines.
 
 ## License
 

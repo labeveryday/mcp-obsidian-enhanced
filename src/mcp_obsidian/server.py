@@ -12,7 +12,6 @@ import mcp
 
 from mcp_obsidian.config import load_config
 from mcp_obsidian.obsidian import ObsidianClient
-from mcp_obsidian.prompts import PROMPTS, get_prompt, list_prompts
 from mcp_obsidian.utils.errors import (
     ObsidianError,
     ObsidianNotFoundError,
@@ -567,22 +566,128 @@ async def obsidian_summarize_note(path: str, length: str = "medium") -> str:
         # Read the note content
         content = await client.get_note_content(path)
         
+        # Extract title from the content or path
+        title = path.split("/")[-1].replace(".md", "")
+        if content.startswith("# "):
+            title_line = content.split("\n")[0]
+            title = title_line.replace("# ", "").strip()
+        
+        # Extract sections and headings
+        sections = []
+        current_section = ""
+        current_heading = ""
+        
+        for line in content.split("\n"):
+            if line.startswith("# ") or line.startswith("## ") or line.startswith("### "):
+                # Save previous section if it exists
+                if current_heading and current_section.strip():
+                    sections.append((current_heading, current_section.strip()))
+                
+                # Start new section
+                current_heading = line.strip("# ").strip()
+                current_section = ""
+            else:
+                current_section += line + "\n"
+        
+        # Add the last section if it exists
+        if current_heading and current_section.strip():
+            sections.append((current_heading, current_section.strip()))
+        
         # Generate summary based on length
         if length == "short":
-            summary = f"Short summary of '{path}':\n\n"
-            # In a real implementation, this would use an LLM to generate a summary
-            # For now, we'll just return a placeholder
-            summary += "This is a brief summary of the note content."
+            summary = f"Short summary of '{title}':\n\n"
+            
+            # For short summary, just include the main headings and first sentence of each section
+            if sections:
+                summary += "Key sections:\n"
+                for heading, section_content in sections[:3]:  # Limit to first 3 sections for short summary
+                    summary += f"- {heading}"
+                    # Add first sentence if available
+                    first_sentence = section_content.split(". ")[0] if ". " in section_content else ""
+                    if first_sentence and len(first_sentence) < 100:  # Only if it's reasonably short
+                        summary += f": {first_sentence}."
+                    summary += "\n"
+            else:
+                # If no sections, summarize the first paragraph
+                paragraphs = [p for p in content.split("\n\n") if p.strip()]
+                if paragraphs:
+                    first_para = paragraphs[0].strip()
+                    if len(first_para) > 150:
+                        summary += first_para[:150] + "..."
+                    else:
+                        summary += first_para
+        
         elif length == "long":
-            summary = f"Detailed summary of '{path}':\n\n"
-            # In a real implementation, this would use an LLM to generate a summary
-            # For now, we'll just return a placeholder
-            summary += "This is a comprehensive summary of the note content, including all key points and details."
+            summary = f"Detailed summary of '{title}':\n\n"
+            
+            # For long summary, include all headings and condensed content
+            if sections:
+                for heading, section_content in sections:
+                    summary += f"## {heading}\n\n"
+                    
+                    # Include key points from each section
+                    paragraphs = [p for p in section_content.split("\n\n") if p.strip()]
+                    for para in paragraphs:
+                        # Extract bullet points if they exist
+                        if para.strip().startswith("- ") or para.strip().startswith("* "):
+                            summary += para + "\n\n"
+                        else:
+                            # For regular paragraphs, include first 2 sentences
+                            sentences = para.split(". ")
+                            if len(sentences) > 2:
+                                summary += ". ".join(sentences[:2]) + ".\n\n"
+                            else:
+                                summary += para + "\n\n"
+            else:
+                # If no sections, summarize by paragraphs
+                paragraphs = [p for p in content.split("\n\n") if p.strip()]
+                for i, para in enumerate(paragraphs):
+                    if i < 5:  # Limit to first 5 paragraphs for long summary
+                        summary += para + "\n\n"
+        
         else:  # medium (default)
-            summary = f"Summary of '{path}':\n\n"
-            # In a real implementation, this would use an LLM to generate a summary
-            # For now, we'll just return a placeholder
-            summary += "This is a summary of the main points from the note content."
+            summary = f"Summary of '{title}':\n\n"
+            
+            # For medium summary, include main headings and brief content
+            if sections:
+                for heading, section_content in sections:
+                    summary += f"### {heading}\n"
+                    
+                    # Include first paragraph or bullet points from each section
+                    paragraphs = [p for p in section_content.split("\n\n") if p.strip()]
+                    if paragraphs:
+                        first_para = paragraphs[0].strip()
+                        
+                        # If it's a list, include the first few items
+                        if first_para.startswith("- ") or first_para.startswith("* "):
+                            bullets = [b for b in first_para.split("\n") if b.strip()]
+                            summary += "\n".join(bullets[:3])  # First 3 bullet points
+                            if len(bullets) > 3:
+                                summary += "\n..."
+                        else:
+                            # For regular paragraph, include first sentence or truncate
+                            if len(first_para) > 100:
+                                sentences = first_para.split(". ")
+                                if len(sentences) > 1:
+                                    summary += sentences[0] + "."
+                                else:
+                                    summary += first_para[:100] + "..."
+                            else:
+                                summary += first_para
+                    
+                    summary += "\n\n"
+            else:
+                # If no sections, summarize first few paragraphs
+                paragraphs = [p for p in content.split("\n\n") if p.strip()]
+                for i, para in enumerate(paragraphs[:3]):  # First 3 paragraphs for medium summary
+                    if len(para) > 100:
+                        sentences = para.split(". ")
+                        if len(sentences) > 1:
+                            summary += sentences[0] + ".\n\n"
+                        else:
+                            summary += para[:100] + "...\n\n"
+                    else:
+                        summary += para + "\n\n"
         
         return summary
     except ObsidianNotFoundError:

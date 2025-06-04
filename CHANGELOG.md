@@ -8,7 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial implementation of the Obsidian MCP server
+- Enhanced error handling with more descriptive messages
+- Improved documentation for all tools and prompts
+
+## [0.1.1] - 2025-06-03
+
+### Added
+- Completed all Phase 1 core infrastructure components
 - FastMCP integration for tools, resources, and prompts
 - Configuration management with environment variables
 - Async Obsidian API client for interacting with the Local REST API
@@ -21,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Search and compile functionality (placeholder implementation)
 
 ### Changed
+- Updated project status from "Phase 1 Partially Complete" to "Phase 1 Complete"
 - Consolidated prompt implementation to use decorator-based approach exclusively
 - Updated README to accurately reflect the current state of the project
 - Improved error handling in the Obsidian API client

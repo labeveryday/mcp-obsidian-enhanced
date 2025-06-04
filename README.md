@@ -1,6 +1,6 @@
 # Obsidian MCP Server Enhanced
 
-![Status: Phase 1 Partially Complete](https://img.shields.io/badge/status-Phase%201%20Partially%20Complete-yellow)
+![Status: Phase 1 Complete](https://img.shields.io/badge/status-Phase%201%20Complete-brightgreen)
 
 A Model Context Protocol (MCP) server for integrating Amazon Q with Obsidian.
 
@@ -10,10 +10,11 @@ This MCP server allows Amazon Q to interact with Obsidian vaults without requiri
 
 ## Current Status
 
-- **Phase 1 (Core Infrastructure)**: Partially complete
-- Basic file operations, search, and note templates are working
+- **Phase 1 (Core Infrastructure)**: Complete
+- Basic file operations, search, and note templates are fully implemented
 - Built with FastMCP for seamless integration with Amazon Q
 - Uses decorator-based approach for prompt registration
+- Ready to begin Phase 2: Essential Features
 
 ## Features
 
@@ -178,12 +179,12 @@ async def organize_notes_prompt(
 
 ## Implementation Roadmap
 
-### Phase 1: Core Infrastructure (In Progress)
+### Phase 1: Core Infrastructure (Complete)
 - ✅ Basic server setup with FastMCP
 - ✅ Configuration management
 - ✅ Obsidian API client
 - ✅ Basic file operations
-- ⏳ Complete folder management tools
+- ✅ Basic folder management tools
 
 ### Phase 2: Essential Features (Planned)
 - Advanced search functionality

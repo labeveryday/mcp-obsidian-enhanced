@@ -32,6 +32,8 @@ This MCP server allows Amazon Q to interact with Obsidian vaults without requiri
 - **Organization & Metadata**: Manage tags, frontmatter, and file organization
 - **Advanced Search & Discovery**: Enhanced search by content, tags, and other criteria
 - **Knowledge Management**: Extract highlights, compile notes, and more
+- **Search and Compile**: Search for notes and compile information into a single note
+- **Note Organization**: Organize notes on specific topics with AI assistance
 
 ## Getting Started
 
@@ -113,12 +115,16 @@ npx @modelcontextprotocol/inspector uv --directory ./ "run" "run_server.py"
 | `obsidian_append_note` | Append content to an existing note |
 | `obsidian_delete_note` | Delete a note from your Obsidian vault |
 | `obsidian_list_files` | List files and folders in your Obsidian vault |
-| `obsidian_search` | Search for notes in your Obsidian vault |
 | `obsidian_get_active_file` | Get the currently active file in Obsidian |
 | `obsidian_create_daily_note` | Create a daily note with predefined sections |
-| `obsidian_summarize_note` | Summarize the content of a note (placeholder) |
-| `obsidian_search_and_compile` | Search for notes and compile information (placeholder) |
-| `obsidian_organize_notes` | Organize notes on a specific topic (placeholder) |
+
+### Planned Tools (Phase 2)
+| Tool Name | Description |
+|-----------|-------------|
+| `obsidian_search` | Search for notes in your Obsidian vault |
+| `obsidian_summarize_note` | Summarize the content of a note |
+| `obsidian_search_and_compile` | Search for notes and compile information |
+| `obsidian_organize_notes` | Organize notes on a specific topic |
 
 ## Available Prompts
 
@@ -190,6 +196,9 @@ async def organize_notes_prompt(
 - Advanced search functionality
 - Metadata management
 - Improved templates
+- Note organization capabilities
+- Search and compile functionality
+- Note summarization
 
 ### Phase 3: Advanced Features (Planned)
 - Knowledge management tools

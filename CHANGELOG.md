@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error handling with more descriptive messages
 - Improved documentation for all tools and prompts
 
+## [0.1.2] - 2025-06-04
+
+### Changed
+- Moved non-functional tools to Phase 2 roadmap
+- Updated README to reflect current working tools vs planned tools
+- Reorganized project roadmap to clarify Phase 2 features
+
+### Removed
+- Removed `obsidian_search` tool implementation (moved to Phase 2)
+- Removed `obsidian_summarize_note` tool implementation (moved to Phase 2)
+- Removed `obsidian_search_and_compile` tool implementation (moved to Phase 2)
+- Removed `obsidian_organize_notes` tool implementation (moved to Phase 2)
+- Removed `organize-notes` prompt (moved to Phase 2)
+
 ## [0.1.1] - 2025-06-03
 
 ### Added
